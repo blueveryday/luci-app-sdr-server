@@ -1,0 +1,28 @@
+{
+	"admin/services/sdr-server": {
+		"title": "SDR 服务",
+		"order": 85,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-sdr-server" ]
+		}
+	},
+	"admin/services/sdr-server/status": {
+		"title": "服务状态",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "sdr-server/status"
+		}
+	},
+	"admin/services/sdr-server/config": {
+		"title": "参数配置",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "sdr-server/config"
+		}
+	}
+}

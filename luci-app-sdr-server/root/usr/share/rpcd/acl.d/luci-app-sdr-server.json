@@ -1,0 +1,23 @@
+{
+	"luci-app-sdr-server": {
+		"description": "Manage sdr-server service and configuration",
+		"read": {
+			"uci": [ "sdr-server" ],
+			"file": {
+				"/etc/init.d/sdr-server": [ "exec" ],
+				"/usr/bin/sdr_server": [ "exec" ],
+				"/usr/libexec/sdr-server-render-config": [ "exec" ],
+				"/usr/bin/logread": [ "exec" ],
+				"/bin/cat": [ "exec" ],
+				"/etc/sdr-server/config.conf": [ "read" ]
+			}
+		},
+		"write": {
+			"uci": [ "sdr-server" ],
+			"file": {
+				"/etc/init.d/sdr-server": [ "exec" ],
+				"/etc/sdr-server/config.conf": [ "write" ]
+			}
+		}
+	}
+}

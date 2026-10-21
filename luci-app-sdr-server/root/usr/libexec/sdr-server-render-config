@@ -1,0 +1,129 @@
+#!/bin/sh
+# Render the UCI settings into the libconfig file consumed by sdr_server.
+# String-valued settings are validated before writing to avoid config injection.
+
+set -e
+
+[ -n "${IPKG_INSTROOT:-}" ] && exit 0
+
+. /lib/functions.sh
+config_load sdr-server
+
+get() {
+	local value
+	config_get value main "$1" "$2"
+	printf '%s' "$value"
+}
+
+bind_address="$(get bind_address 0.0.0.0)"
+port="$(get port 8090)"
+buffer_size="$(get buffer_size 262144)"
+queue_size="$(get queue_size 64)"
+read_timeout_seconds="$(get read_timeout_seconds 5)"
+lpf_cutoff_rate="$(get lpf_cutoff_rate 5)"
+sdr_type="$(get sdr_type 0)"
+cpu_optimization="$(get cpu_optimization NATIVE_CF32)"
+band_sampling_rate="$(get band_sampling_rate 2016000)"
+use_gzip="$(get use_gzip 1)"
+base_path="$(get base_path /tmp/sdr-server)"
+
+gain_mode="$(get gain_mode 1)"
+gain="$(get gain 49.0)"
+ppm="$(get ppm 0)"
+device_index="$(get device_index 0)"
+bias_t="$(get bias_t 0)"
+
+airspy_gain_mode="$(get airspy_gain_mode 0)"
+airspy_vga_gain="$(get airspy_vga_gain 5)"
+airspy_mixer_gain="$(get airspy_mixer_gain 5)"
+airspy_lna_gain="$(get airspy_lna_gain 5)"
+airspy_linearity_gain="$(get airspy_linearity_gain 0)"
+airspy_sensitivity_gain="$(get airspy_sensitivity_gain 0)"
+
+hackrf_amp="$(get hackrf_amp 0)"
+hackrf_lna_gain="$(get hackrf_lna_gain 16)"
+hackrf_vga_gain="$(get hackrf_vga_gain 20)"
+hackrf_bias_t="$(get hackrf_bias_t 0)"
+
+is_uint() { case "$1" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
+is_number() { case "$1" in ''|*[!0-9.-]*) return 1;; *.*.*|*--*|*-*.*-*) return 1;; *) return 0;; esac; }
+is_bool() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
+
+is_uint "$port" && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 1
+is_uint "$buffer_size" && [ "$buffer_size" -ge 1024 ] || exit 1
+is_uint "$queue_size" && [ "$queue_size" -ge 1 ] || exit 1
+is_uint "$read_timeout_seconds" || exit 1
+is_uint "$sdr_type" && [ "$sdr_type" -le 2 ] || exit 1
+is_uint "$band_sampling_rate" || exit 1
+is_uint "$gain_mode" || exit 1
+is_uint "$ppm" || case "$ppm" in -[0-9]*) ;; *) exit 1;; esac
+is_uint "$device_index" || exit 1
+is_bool "$bias_t" || exit 1
+is_bool "$use_gzip" || exit 1
+is_bool "$hackrf_amp" || exit 1
+is_bool "$hackrf_bias_t" || exit 1
+is_number "$gain" || exit 1
+is_number "$lpf_cutoff_rate" || exit 1
+is_uint "$airspy_gain_mode" || exit 1
+is_uint "$airspy_vga_gain" || exit 1
+is_uint "$airspy_mixer_gain" || exit 1
+is_uint "$airspy_lna_gain" || exit 1
+is_uint "$airspy_linearity_gain" || exit 1
+is_uint "$airspy_sensitivity_gain" || exit 1
+is_uint "$hackrf_lna_gain" || exit 1
+is_uint "$hackrf_vga_gain" || exit 1
+
+case "$bind_address" in
+	''|*[!0-9.]* ) echo "bind_address must be an IPv4 address" >&2; exit 1 ;;
+esac
+
+case "$cpu_optimization" in
+	NATIVE_CF32|OPTIMIZED_CF32) ;;
+	*) echo "invalid cpu_optimization, must be NATIVE_CF32 or OPTIMIZED_CF32" >&2; exit 1 ;;
+esac
+
+case "$base_path" in
+	/*) ;;
+	*) echo "base_path must be an absolute path" >&2; exit 1 ;;
+esac
+case "$base_path" in *'"'*|*'\\'*|*'
+'*) echo "invalid base_path" >&2; exit 1 ;; esac
+
+case "$gain" in
+	*.*) ;;
+	*) gain="${gain}.0" ;;
+esac
+
+mkdir -p /etc/sdr-server
+tmp="/etc/sdr-server/config.conf.tmp"
+umask 077
+cat > "$tmp" <<EOF
+bind_address = "$bind_address";
+port = $port;
+buffer_size = $buffer_size;
+queue_size = $queue_size;
+read_timeout_seconds = $read_timeout_seconds;
+lpf_cutoff_rate = $lpf_cutoff_rate;
+sdr_type = $sdr_type;
+cpu_optimization = "$cpu_optimization";
+band_sampling_rate = $band_sampling_rate;
+use_gzip = $([ "$use_gzip" = 1 ] && echo true || echo false);
+base_path = "$base_path";
+gain_mode = $gain_mode;
+gain = $gain;
+ppm = $ppm;
+device_index = $device_index;
+bias_t = $bias_t;
+airspy_gain_mode = $airspy_gain_mode;
+airspy_vga_gain = $airspy_vga_gain;
+airspy_mixer_gain = $airspy_mixer_gain;
+airspy_lna_gain = $airspy_lna_gain;
+airspy_linearity_gain = $airspy_linearity_gain;
+airspy_sensitivity_gain = $airspy_sensitivity_gain;
+hackrf_amp = $hackrf_amp;
+hackrf_lna_gain = $hackrf_lna_gain;
+hackrf_vga_gain = $hackrf_vga_gain;
+hackrf_bias_t = $hackrf_bias_t;
+EOF
+chmod 600 "$tmp"
+mv "$tmp" /etc/sdr-server/config.conf
